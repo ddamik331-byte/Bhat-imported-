@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, products, adminUsers, InsertProduct, InsertAdminUser } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -87,6 +87,64 @@ export async function getUserByOpenId(openId: string) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getAllProducts() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(products).orderBy(desc(products.createdAt));
+}
+
+export async function getProductById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(products).where(eq(products.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getProductsByCategory(category: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(products).where(eq(products.category, category));
+}
+
+export async function getUniqueCategories() {
+  const db = await getDb();
+  if (!db) return [];
+  const result = await db.selectDistinct({ category: products.category }).from(products);
+  return result.map(r => r.category).filter(Boolean);
+}
+
+export async function createProduct(data: InsertProduct) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(products).values(data);
+  return result;
+}
+
+export async function updateProduct(id: number, data: Partial<InsertProduct>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.update(products).set(data).where(eq(products.id, id));
+}
+
+export async function deleteProduct(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.delete(products).where(eq(products.id, id));
+}
+
+export async function getAdminByUsername(username: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(adminUsers).where(eq(adminUsers.username, username)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createAdminUser(data: InsertAdminUser) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.insert(adminUsers).values(data);
 }
 
 // TODO: add feature queries here as your schema grows.

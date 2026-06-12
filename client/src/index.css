@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap");
+
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -119,6 +121,37 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "kern" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl;
+  }
+
+  p {
+    @apply leading-relaxed;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  ::selection {
+    @apply bg-accent text-accent-foreground;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -130,6 +163,14 @@
   input[type="checkbox"]:not(:disabled),
   input[type="radio"]:not(:disabled) {
     @apply cursor-pointer;
+  }
+
+  button {
+    @apply transition-all duration-200;
+  }
+
+  button:active:not(:disabled) {
+    @apply transform scale-95;
   }
 }
 
@@ -158,6 +199,14 @@
   .flex {
     min-height: 0;
     min-width: 0;
+  }
+
+  .card {
+    @apply rounded-lg border border-border bg-card shadow-sm transition-shadow hover:shadow-md;
+  }
+
+  .serif {
+    font-family: "Playfair Display", serif;
   }
 
   @media (min-width: 640px) {
