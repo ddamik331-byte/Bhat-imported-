@@ -77,3 +77,16 @@
 - [x] Invalidate categories after product mutations
 - [x] Test product add/edit/delete with real-time sync (16 tests passing)
 - [x] All pages refetch on tab visibility change
+
+
+## Design Redesign (Dainty Store Inspired)
+- [x] Update color palette to pink/rose and green
+- [x] Update global styles and typography
+- [x] Redesign navigation to blend with hero (no floating) - fixed nested anchors
+- [x] Create hero banner with overlay text
+- [x] Add features section with icons
+- [x] Update Shop page layout with filters
+- [x] Update Collections page layout
+- [x] Test responsive design (all tests passing, TypeScript clean)
+- [x] Production build successful
+- [ ] Create new checkpoint

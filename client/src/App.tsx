@@ -4,7 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { FloatingNavbar } from "./components/FloatingNavbar";
+import { Navigation } from "./components/Navigation";
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Collections from "./pages/Collections";
@@ -30,7 +30,7 @@ function Router() {
 
   return (
     <>
-      <FloatingNavbar onAdminClick={handleAdminClick} />
+      <Navigation onAdminClick={handleAdminClick} />
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/shop" component={Shop} />

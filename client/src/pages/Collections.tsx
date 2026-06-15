@@ -7,11 +7,10 @@ import { ArrowRight } from "lucide-react";
 
 export default function Collections() {
   const { data: allProducts = [], isLoading: productsLoading, error: productsError, refetch } = trpc.products.getAll.useQuery(undefined, {
-    refetchInterval: 5000, // Real-time updates
+    refetchInterval: 5000,
   });
   const { data: categories = [], isLoading: categoriesLoading } = trpc.products.getCategories.useQuery();
 
-  // Refetch when page becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -33,95 +32,92 @@ export default function Collections() {
   }, [allProducts, categories]);
 
   return (
-    <div className="min-h-screen py-12">
-      <div className="container">
-        {/* Header */}
-        <div className="mb-16">
-          <h1 className="serif text-4xl md:text-5xl font-bold mb-4">
+    <div className="min-h-screen bg-white">
+      {/* Page Header */}
+      <section className="border-b border-border py-12 md:py-16">
+        <div className="container mx-auto px-4">
+          <h1 className="serif text-5xl md:text-6xl font-bold text-foreground mb-4">
             Collections
           </h1>
-          <p className="text-muted-foreground text-lg">
-            Explore our curated collections, each with its own unique style and character
+          <p className="text-lg text-foreground/70">
+            Explore our curated collections organized by category
           </p>
         </div>
+      </section>
 
-        {/* Collections Grid */}
-        {productsLoading || categoriesLoading ? (
-          <div className="text-center py-16">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
-            <p className="text-muted-foreground mt-4">Loading collections...</p>
+      {/* Collections */}
+      <div className="container mx-auto px-4 py-12 md:py-16">
+        {categoriesLoading || productsLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         ) : productsError ? (
-          <div className="text-center py-16">
-            <p className="text-destructive mb-4">Failed to load collections</p>
-            <p className="text-sm text-muted-foreground">{productsError.message}</p>
+          <div className="text-center py-12">
+            <p className="text-foreground/60">Unable to load collections</p>
           </div>
-        ) : categories.length > 0 ? (
-          <div className="space-y-20">
-            {categories.map((category) => {
-              const products = collectionsByCategory[category] || [];
-              if (products.length === 0) return null;
-
-              return (
-                <div key={category}>
-                  {/* Collection Header */}
-                  <div className="mb-8 flex items-center justify-between">
-                    <div>
-                      <h2 className="serif text-3xl md:text-4xl font-bold mb-2">
-                        {category}
-                      </h2>
-                      <p className="text-muted-foreground">
-                        {products.length} items in this collection
-                      </p>
-                    </div>
-                    <Link href={`/shop?category=${encodeURIComponent(category)}`}>
-                      <Button variant="outline" className="gap-2">
-                        View All
-                        <ArrowRight className="w-4 h-4" />
-                      </Button>
-                    </Link>
+        ) : Object.keys(collectionsByCategory).length > 0 ? (
+          <div className="space-y-16">
+            {Object.entries(collectionsByCategory).map(([category, products]) => (
+              <section key={category}>
+                {/* Collection Header */}
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h2 className="serif text-4xl md:text-5xl font-bold text-foreground mb-2">
+                      {category}
+                    </h2>
+                    <p className="text-foreground/60">
+                      {products.length} product{products.length !== 1 ? 's' : ''} in this collection
+                    </p>
                   </div>
-
-                  {/* Products Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-                    {products.slice(0, 4).map((product) => (
-                      <ProductCard key={product.id} product={product} />
-                    ))}
-                  </div>
-
-                  {/* Divider */}
-                  {categories.indexOf(category) < categories.length - 1 && (
-                    <div className="border-t border-border my-12" />
-                  )}
+                  <Link href={`/shop?category=${category}`}>
+                    <Button variant="outline" className="gap-2 hidden md:flex">
+                      View All
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
                 </div>
-              );
-            })}
-          </div>
-        ) : !productsLoading && !categoriesLoading ? (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground mb-4 text-lg">
-              No collections available yet
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Check back soon for our curated collections
-            </p>
-          </div>
-        ) : null}
 
-        {/* CTA Section */}
-        <div className="mt-20 py-16 bg-muted rounded-lg text-center">
-          <h3 className="serif text-2xl md:text-3xl font-bold mb-4">
-            Discover More
-          </h3>
-          <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Browse our complete collection and find the perfect piece for your style
-          </p>
-          <Link href="/shop">
-            <Button size="lg">
-              Shop All Products
-            </Button>
-          </Link>
-        </div>
+                {/* Products Grid */}
+                {products.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                      {products.slice(0, 4).map((product) => (
+                        <ProductCard key={product.id} product={product} />
+                      ))}
+                    </div>
+
+                    {products.length > 4 && (
+                      <div className="text-center md:hidden">
+                        <Link href={`/shop?category=${category}`}>
+                          <Button variant="outline" className="gap-2">
+                            View All {products.length} Products
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-12 bg-secondary/30 rounded-lg">
+                    <p className="text-foreground/60">No products in this collection yet</p>
+                  </div>
+                )}
+
+                {/* Divider */}
+                {category !== Object.keys(collectionsByCategory)[Object.keys(collectionsByCategory).length - 1] && (
+                  <div className="my-12 border-t border-border" />
+                )}
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-foreground/60 mb-4">No collections available yet</p>
+            <Link href="/admin/login">
+              <Button variant="outline">Add Products</Button>
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
