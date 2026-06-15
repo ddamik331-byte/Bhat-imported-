@@ -18,6 +18,7 @@ export function Navigation({ onAdminClick }: NavigationProps) {
     { href: "/shop", label: "Shop" },
     { href: "/collections", label: "Collections" },
     { href: "/about", label: "About" },
+    { href: "/contact", label: "Contact" },
   ];
 
   return (

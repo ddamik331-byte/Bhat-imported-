@@ -1,4 +1,5 @@
 import { COOKIE_NAME } from "@shared/const";
+import { notifyOwner } from "./_core/notification";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
@@ -79,6 +80,32 @@ export const appRouter = router({
           success: true,
           adminId: admin.id,
           username: admin.username,
+        };
+      }),
+  }),
+  contact: router({
+    submit: publicProcedure
+      .input(
+        z.object({
+          name: z.string().min(1),
+          email: z.string().email(),
+          subject: z.string().min(1),
+          message: z.string().min(1),
+        })
+      )
+      .mutation(async ({ input }) => {
+        try {
+          await notifyOwner({
+            title: `New Contact Form Submission from ${input.name}`,
+            content: `Email: ${input.email}\nSubject: ${input.subject}\n\nMessage:\n${input.message}`,
+          });
+        } catch (error) {
+          console.error("Failed to notify owner:", error);
+        }
+        console.log("Contact form submission:", input);
+        return {
+          success: true,
+          message: "Your message has been received. We will get back to you soon.",
         };
       }),
   }),

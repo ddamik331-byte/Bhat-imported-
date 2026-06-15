@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Collections from "./pages/Collections";
 import About from "./pages/About";
+import Contact from "./pages/Contact";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import { useState } from "react";
@@ -36,6 +37,7 @@ function Router() {
         <Route path="/shop" component={Shop} />
         <Route path="/collections" component={Collections} />
         <Route path="/about" component={About} />
+        <Route path="/contact" component={Contact} />
         <Route path="/admin/login">
           {() => <AdminLogin onLoginSuccess={(session) => {
             setAdminSession(session);
