@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/ProductCard";
@@ -7,7 +7,9 @@ import { Product } from "@/types";
 import { ArrowRight, Sparkles } from "lucide-react";
 
 export default function Home() {
-  const { data: allProducts = [], isLoading, error } = trpc.products.getAll.useQuery();
+  const { data: allProducts = [], isLoading, error, refetch } = trpc.products.getAll.useQuery(undefined, {
+    refetchInterval: 5000, // Refetch every 5 seconds for real-time updates
+  });
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
 
   useEffect(() => {
@@ -15,6 +17,17 @@ export default function Home() {
       setFeaturedProducts(allProducts.slice(0, 4));
     }
   }, [allProducts, isLoading, error]);
+
+  // Refetch when page becomes visible (user returns to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refetch();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [refetch]);
 
   return (
     <div className="min-h-screen">

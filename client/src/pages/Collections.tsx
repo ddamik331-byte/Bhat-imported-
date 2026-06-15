@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import { ProductCard } from "@/components/ProductCard";
 import { trpc } from "@/lib/trpc";
@@ -6,8 +6,21 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 
 export default function Collections() {
-  const { data: allProducts = [], isLoading: productsLoading, error: productsError } = trpc.products.getAll.useQuery();
+  const { data: allProducts = [], isLoading: productsLoading, error: productsError, refetch } = trpc.products.getAll.useQuery(undefined, {
+    refetchInterval: 5000, // Real-time updates
+  });
   const { data: categories = [], isLoading: categoriesLoading } = trpc.products.getCategories.useQuery();
+
+  // Refetch when page becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refetch();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [refetch]);
 
   const collectionsByCategory = useMemo(() => {
     const collections: Record<string, typeof allProducts> = {};

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { AdminSession } from "@/types";
-import { Plus, LogOut, Edit2, Trash2 } from "lucide-react";
+import { Plus, LogOut, Edit2, Trash2, Search, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -31,17 +31,22 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ session, onLogout }: AdminDashboardProps) {
-  const { data: products = [] } = trpc.products.getAll.useQuery();
+  // Initialize hooks first
+  const utils = trpc.useUtils();
+  const { data: products = [], isLoading: productsLoading, refetch } = trpc.products.getAll.useQuery(undefined, {
+    refetchInterval: 5000, // Real-time sync with frontend
+  });
   const createMutation = trpc.products.create.useMutation();
   const updateMutation = trpc.products.update.useMutation();
   const deleteMutation = trpc.products.delete.useMutation();
-  const utils = trpc.useUtils();
 
+  // State
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "price-low" | "price-high">("newest");
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -50,7 +55,19 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
     imageUrl: "",
   });
 
-  const resetForm = () => {
+  // Refetch when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refetch();
+        utils.products.getCategories.invalidate();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [refetch, utils.products.getCategories]);
+
+  const resetForm = useCallback(() => {
     setFormData({
       name: "",
       price: "",
@@ -59,9 +76,35 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
       imageUrl: "",
     });
     setEditingId(null);
-  };
+  }, []);
 
-  const handleEdit = (productId: number) => {
+  // Filter and sort products
+  const filteredProducts = useMemo(() => {
+    let filtered = products.filter((p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Sort
+    switch (sortBy) {
+      case "price-low":
+        filtered.sort((a, b) => a.price - b.price);
+        break;
+      case "price-high":
+        filtered.sort((a, b) => b.price - a.price);
+        break;
+      case "oldest":
+        filtered.sort((a, b) => a.id - b.id);
+        break;
+      case "newest":
+      default:
+        filtered.sort((a, b) => b.id - a.id);
+    }
+
+    return filtered;
+  }, [products, searchQuery, sortBy]);
+
+  const handleEdit = useCallback((productId: number) => {
     const product = products.find((p) => p.id === productId);
     if (product) {
       setFormData({
@@ -74,9 +117,9 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
       setEditingId(productId);
       setIsAddDialogOpen(true);
     }
-  };
+  }, [products]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -84,27 +127,58 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
       const priceInCents = Math.round(parseFloat(formData.price) * 100);
 
       if (editingId) {
-        await updateMutation.mutateAsync({
-          id: editingId,
-          name: formData.name || undefined,
-          price: priceInCents || undefined,
-          category: formData.category || undefined,
-          description: formData.description || undefined,
-          imageUrl: formData.imageUrl || undefined,
-        });
-        toast.success("Product updated successfully!");
+        // Optimistic update for editing
+        const previousData = utils.products.getAll.getData();
+        utils.products.getAll.setData(undefined, (old) =>
+          old?.map((p) =>
+            p.id === editingId
+              ? {
+                  ...p,
+                  name: formData.name || p.name,
+                  price: priceInCents || p.price,
+                  category: formData.category || p.category,
+                  description: formData.description || p.description,
+                  imageUrl: formData.imageUrl || p.imageUrl,
+                }
+              : p
+          )
+        );
+
+        try {
+          await updateMutation.mutateAsync({
+            id: editingId,
+            name: formData.name || undefined,
+            price: priceInCents || undefined,
+            category: formData.category || undefined,
+            description: formData.description || undefined,
+            imageUrl: formData.imageUrl || undefined,
+          });
+          toast.success("Product updated successfully!");
+        } catch (error) {
+          // Rollback on error
+          utils.products.getAll.setData(undefined, previousData);
+          throw error;
+        }
       } else {
-        await createMutation.mutateAsync({
-          name: formData.name,
-          price: priceInCents,
-          category: formData.category,
-          description: formData.description || undefined,
-          imageUrl: formData.imageUrl || undefined,
-        });
-        toast.success("Product created successfully!");
+        // Create new product
+        try {
+          await createMutation.mutateAsync({
+            name: formData.name,
+            price: priceInCents,
+            category: formData.category,
+            description: formData.description || undefined,
+            imageUrl: formData.imageUrl || undefined,
+          });
+          toast.success("Product created successfully!");
+        } catch (error) {
+          throw error;
+        }
       }
 
+      // Invalidate related queries to sync across all pages
       await utils.products.getAll.invalidate();
+      await utils.products.getCategories.invalidate();
+      await refetch();
       setIsAddDialogOpen(false);
       resetForm();
     } catch (error: any) {
@@ -112,31 +186,48 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [editingId, formData, createMutation, updateMutation, utils, refetch, resetForm]);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!deleteId) return;
 
     setIsLoading(true);
     try {
-      await deleteMutation.mutateAsync(deleteId);
+      // Optimistic update for deletion
+      const previousData = utils.products.getAll.getData();
+      utils.products.getAll.setData(undefined, (old) =>
+        old?.filter((p) => p.id !== deleteId)
+      );
+
+      try {
+        await deleteMutation.mutateAsync(deleteId);
+        toast.success("Product deleted successfully!");
+      } catch (error) {
+        // Rollback on error
+        utils.products.getAll.setData(undefined, previousData);
+        throw error;
+      }
+
+      // Invalidate related queries to sync across all pages
       await utils.products.getAll.invalidate();
-      toast.success("Product deleted successfully!");
+      await utils.products.getCategories.invalidate();
+      await refetch();
       setDeleteId(null);
     } catch (error: any) {
       toast.error(error?.message || "Failed to delete product");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [deleteId, deleteMutation, utils, refetch]);
 
   return (
-    <div className="min-h-screen bg-muted/50 py-8">
-      <div className="container">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background py-8 px-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Welcome, {session.username}</p>
+            <h1 className="text-4xl font-bold serif mb-2">Admin Dashboard</h1>
+            <p className="text-muted-foreground">Welcome, <span className="font-semibold">{session.username}</span></p>
           </div>
           <Button variant="outline" onClick={onLogout} className="gap-2">
             <LogOut className="w-4 h-4" />
@@ -144,17 +235,34 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
           </Button>
         </div>
 
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <Card className="p-6 bg-card/50">
+            <p className="text-muted-foreground text-sm mb-2">Total Products</p>
+            <p className="text-3xl font-bold">{products.length}</p>
+          </Card>
+          <Card className="p-6 bg-card/50">
+            <p className="text-muted-foreground text-sm mb-2">Total Value</p>
+            <p className="text-3xl font-bold">${(products.reduce((sum, p) => sum + p.price, 0) / 100).toFixed(2)}</p>
+          </Card>
+          <Card className="p-6 bg-card/50">
+            <p className="text-muted-foreground text-sm mb-2">Categories</p>
+            <p className="text-3xl font-bold">{new Set(products.map(p => p.category)).size}</p>
+          </Card>
+        </div>
+
+        {/* Add Product Button */}
         <div className="mb-8">
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => resetForm()}>
-                <Plus className="w-4 h-4" />
+              <Button size="lg" className="gap-2" onClick={() => resetForm()}>
+                <Plus className="w-5 h-5" />
                 Add New Product
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="text-2xl">
                   {editingId ? "Edit Product" : "Add New Product"}
                 </DialogTitle>
                 <DialogDescription>
@@ -168,7 +276,7 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Product Name
+                      Product Name *
                     </label>
                     <Input
                       value={formData.name}
@@ -181,7 +289,7 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Price ($)
+                      Price ($) *
                     </label>
                     <Input
                       type="number"
@@ -199,7 +307,7 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Category
+                      Category *
                     </label>
                     <Input
                       value={formData.category}
@@ -238,7 +346,7 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
                   />
                 </div>
 
-                <div className="flex gap-3 justify-end pt-4">
+                <div className="flex gap-3 justify-end pt-4 border-t">
                   <Button
                     type="button"
                     variant="outline"
@@ -262,27 +370,81 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
           </Dialog>
         </div>
 
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-border bg-muted/50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Name</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Category</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Price</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.length > 0 ? (
-                  products.map((product) => (
-                    <tr key={product.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                      <td className="px-6 py-4 text-sm">{product.name}</td>
+        {/* Search and Filter */}
+        <Card className="p-4 mb-6 bg-card/50">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-4 py-2 rounded-md border border-input bg-background text-sm"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="price-low">Price: Low to High</option>
+              <option value="price-high">Price: High to Low</option>
+            </select>
+          </div>
+        </Card>
+
+        {/* Products Table */}
+        <Card className="bg-card/50 overflow-hidden">
+          {productsLoading ? (
+            <div className="p-8 text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+              <p className="text-muted-foreground mt-4">Loading products...</p>
+            </div>
+          ) : filteredProducts.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b border-border bg-muted/50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Name</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Category</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Price</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Image</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.map((product) => (
+                    <tr
+                      key={product.id}
+                      className="border-b border-border hover:bg-muted/30 transition-colors"
+                    >
+                      <td className="px-6 py-4 text-sm font-medium">{product.name}</td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">
                         {product.category}
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium">
+                      <td className="px-6 py-4 text-sm font-semibold">
                         ${(product.price / 100).toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-10 h-10 rounded object-cover"
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">No image</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex gap-2">
@@ -307,26 +469,37 @@ export default function AdminDashboard({ session, onLogout }: AdminDashboardProp
                         </div>
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
-                      No products yet. Create your first product to get started!
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-8 text-center">
+              <p className="text-muted-foreground mb-4 text-lg">
+                {searchQuery ? "No products match your search" : "No products yet"}
+              </p>
+              <p className="text-sm text-muted-foreground mb-6">
+                {searchQuery
+                  ? "Try adjusting your search query"
+                  : "Create your first product to get started!"}
+              </p>
+              {searchQuery && (
+                <Button variant="outline" onClick={() => setSearchQuery("")}>
+                  Clear Search
+                </Button>
+              )}
+            </div>
+          )}
         </Card>
       </div>
 
+      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Product</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this product? This action cannot be undone.
+              Are you sure you want to delete this product? This action cannot be undone and will immediately sync across the storefront.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex gap-3 justify-end">

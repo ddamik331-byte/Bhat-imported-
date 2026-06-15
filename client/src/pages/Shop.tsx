@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { trpc } from "@/lib/trpc";
 import { Input } from "@/components/ui/input";
@@ -13,12 +13,25 @@ import {
 import { Search, X } from "lucide-react";
 
 export default function Shop() {
-  const { data: allProducts = [], isLoading: productsLoading, error: productsError } = trpc.products.getAll.useQuery();
+  const { data: allProducts = [], isLoading: productsLoading, error: productsError, refetch } = trpc.products.getAll.useQuery(undefined, {
+    refetchInterval: 5000, // Real-time updates
+  });
   const { data: categories = [], isLoading: categoriesLoading } = trpc.products.getCategories.useQuery();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState("newest");
+
+  // Refetch when page becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refetch();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [refetch]);
 
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = allProducts;

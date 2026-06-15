@@ -4,7 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { Navigation } from "./components/Navigation";
+import { FloatingNavbar } from "./components/FloatingNavbar";
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Collections from "./pages/Collections";
@@ -18,7 +18,9 @@ function Router() {
   const [adminSession, setAdminSession] = useState<{ adminId: number; username: string } | null>(null);
 
   const handleAdminClick = () => {
-    setLocation("/admin/login");
+    if (!adminSession) {
+      setLocation("/admin/login");
+    }
   };
 
   const handleAdminLogout = () => {
@@ -28,7 +30,7 @@ function Router() {
 
   return (
     <>
-      <Navigation onAdminClick={handleAdminClick} />
+      <FloatingNavbar onAdminClick={handleAdminClick} />
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/shop" component={Shop} />
