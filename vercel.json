@@ -2,11 +2,23 @@
   "version": 2,
   "buildCommand": "pnpm build",
   "devCommand": "pnpm dev",
-  "installCommand": "pnpm install",
+  "installCommand": "pnpm install --no-frozen-lockfile",
   "env": {
     "NODE_ENV": "production"
   },
-  "outputDirectory": "dist",
+  "builds": [
+    {
+      "src": "dist/index.js",
+      "use": "@vercel/node",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    },
+    {
+      "src": "dist/public/**",
+      "use": "@vercel/static"
+    }
+  ],
   "routes": [
     {
       "src": "/api/(.*)",
@@ -14,14 +26,15 @@
     },
     {
       "src": "/assets/(.*)",
+      "dest": "dist/public/assets/$1",
       "headers": {
         "cache-control": "public, max-age=31536000, immutable"
-      },
-      "dest": "dist/public/assets/$1"
+      }
     },
     {
-      "src": "/(.*)",
-      "dest": "dist/public/index.html"
+      "src": "/.*",
+      "dest": "dist/public/index.html",
+      "status": 200
     }
   ]
 }
